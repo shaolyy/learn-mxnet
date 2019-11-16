@@ -4,7 +4,7 @@ from mxnet.gluon import loss as gloss, data as gdata, nn
 import numpy as numpy 
 import pandas as  pd
 
-    # 读取数据
+# 读取数据
 def load_data(file_path= ['./data/house_prices/train.csv','./data/house_prices/test.csv']):
 
     train = pd.read_csv(file_path[0])
