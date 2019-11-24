@@ -71,7 +71,7 @@ for X, Y in data_iter_consecutive(my_seq, batch_size=2, num_steps=6):
 
 
 
-# 2实现循环神经网络（字符集）
+# 2实现循环神经网络（字符）
 import d2lzh as d2l 
 import math
 from mxnet import nd, autograd
@@ -120,8 +120,8 @@ def rnn(inputs, state, params):
     H, = state
     outputs = []
     # inputs和outputs均为num_steps个（batch_size, vocab_size)的矩阵
-    for input in inputs:
-        H = nd.tanh(nd.dot(input, w_xh) + nd.dot(H, w_hh) + b_h)
+    for X in inputs:
+        H = nd.tanh(nd.dot(X, w_xh) + nd.dot(H, w_hh) + b_h)
         Y = nd.dot(H, w_ho) + b_q
         outputs.append(Y)
     return outputs, (H,)
