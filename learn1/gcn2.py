@@ -22,16 +22,6 @@ for attribute in attributes.columns.values:
                                                index=attributes.index).to_dict(),
                         name=attribute)
 
-Series(attributes[attribute], index=attributes.index).to_dict()
-
-for attribute in attributes.columns.values:
-    set_node_attributes(
-        network,
-        values=Series(attributes[attribute],
-                      index=attributes.index).to_dict(),
-        name=attribute
-    )
-
 
 attributes
 X_train, y_train = map(np.array, zip(*[
