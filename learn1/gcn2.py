@@ -1,3 +1,4 @@
+from sklearn.metrics import classification_report
 from networkx import read_edgelist, set_node_attributes
 from collections import namedtuple
 from pandas import read_csv, Series
@@ -8,9 +9,10 @@ from mxnet.ndarray import array
 from mxnet import ndarray as nd, initializer, autograd
 from mxnet.gluon import nn, loss as gloss
 from mxnet import gluon
+import mxnet as mx
 
 DataSet = namedtuple('DataSet', field_names=[
-                  'X_train', 'y_train', 'X_test', 'y_test', 'network'])
+    'X_train', 'y_train', 'X_test', 'y_test', 'network'])
 network = read_edgelist('./data/karate.edgelist', nodetype=int)
 attributes = read_csv('./data/karate.attributes.csv', index_col=['node'])
 
@@ -20,28 +22,28 @@ for attribute in attributes.columns.values:
                                                index=attributes.index).to_dict(),
                         name=attribute)
 
-Series(attributes[attribute],index=attributes.index).to_dict()
+Series(attributes[attribute], index=attributes.index).to_dict()
 
 for attribute in attributes.columns.values:
     set_node_attributes(
         network,
         values=Series(attributes[attribute],
-                        index=attributes.index).to_dict(),
+                      index=attributes.index).to_dict(),
         name=attribute
     )
 
 
 attributes
 X_train, y_train = map(np.array, zip(*[
-    ([node], data['role'] == 'Administrator') 
+    ([node], data['role'] == 'Administrator')
     for node, data in network.nodes(data=True)
     if data['role'] in {'Administrator', 'Instructor'}
 ]))
 
 X_test, y_test = map(np.array, zip(*[
-    ([node], data['community'] == 'Administrator') 
+    ([node], data['community'] == 'Administrator')
     for node, data in network.nodes(data=True)
-    if data['role'] == 'Member' 
+    if data['role'] == 'Member'
 ]))
 
 zkc = DataSet(X_train, y_train, X_test, y_test, network)
@@ -54,7 +56,8 @@ y_train = zkc.y_train
 X_test = zkc.X_test.flatten()
 y_test = zkc.y_test
 
-y_test
+# y_test
+
 
 class SpectralRule(nn.HybridBlock):
     def __init__(self, A, in_units, out_units, activation='relu', **kwargs):
@@ -68,16 +71,18 @@ class SpectralRule(nn.HybridBlock):
         self.in_units, self.out_units = in_units, out_units
         with self.name_scope():
             self.A_hat = self.params.get_constant('A_hat', A_hat)
-            self.W = self.params.get('W', shape=(self.in_units, self.out_units))
+            self.W = self.params.get(
+                'W', shape=(self.in_units, self.out_units))
             if activation == 'identity':
                 self.activation = lambda X: X
             else:
                 self.activation = nn.Activation(activation)
-        
+
     def hybrid_forward(self, F, X, A_hat, W):
         aggregate = F.dot(A_hat, X)
         propagate = self.activation(F.dot(aggregate, W))
         return propagate
+
 
 class LogisticRegressor(nn.HybridBlock):
     def __init__(self, in_units, **kwargs):
@@ -85,12 +90,13 @@ class LogisticRegressor(nn.HybridBlock):
         with self.name_scope():
             self.w = self.params.get('w', shape=(1, in_units))
             self.b = self.params.get('b', shape=(1, 1))
-        
+
     def hybrid_forward(self, F, X, w, b):
         b = F.broadcast_axes(b, axis=(0, 1), size=(34, 1))
         y = F.dot(X, w, transpose_b=True) + b
 
         return F.sigmoid(y)
+
 
 def build_features(A, X):
     hidden_layer_specs = [(4, 'tanh'), (2, 'tanh')]
@@ -104,10 +110,11 @@ def build_features(A, X):
             in_units = layer_size
     return features, in_units
 
+
 def build_model(A, X):
     model = nn.HybridSequential()
     in_units = X.shape[1]
-    
+
     with model.name_scope():
         features, out_units = build_features(A, X)
         model.add(features)
@@ -118,14 +125,28 @@ def build_model(A, X):
     model.initialize(initializer.Uniform(1))
     return model, features
 
+
 X_1 = I = nd.eye(*A.shape)
 model_1, features_1 = build_model(A, X_1)
-model_1(X_1)
+print(model_1(X_1))
+
+X_2 = nd.zeros((A.shape[0], 2))
+node_distance_instructor = nx.shortest_path_length(zkc.network, target=33)
+node_distance_administrator = nx.shortest_path_length(zkc.network, target=0)
+
+for node in zkc.network.nodes():
+    X_2[node][0] = node_distance_administrator[node]
+    X_2[node][1] = node_distance_instructor[node]
+
+model_2, features_2 = build_model(A, X_2)
+print(model_2(X_2))
+print(model_2)
+
 
 def train(model, features, X, X_train, y_train, epochs):
     cross_entropy = gloss.SigmoidBinaryCrossEntropyLoss(from_sigmoid=True)
-    trainer = gluon.Trainer(model.collect_params(), 'sgd', 
-                            {'learning_rate':0.001, 'momentum':1})
+    trainer = gluon.Trainer(model.collect_params(), 'sgd',
+                            {'learning_rate': 0.001, 'momentum': 1})
     feature_representations = [features(X).asnumpy()]
 
     for e in range(1, epochs+1):
@@ -149,14 +170,24 @@ def train(model, features, X, X_train, y_train, epochs):
             print(cum_preds)
     return feature_representations
 
+
 def predict(model, X, nodes):
     preds = model(X)[nodes].asnumpy().flatten()
     return np.where(preds >= 0.5, 1, 0)
 
-from sklearn.metrics import classification_report
-feature_representations_1 = train(model_1, features_1, X_1, X_train, y_train,
-                                    epochs=5000)
-y_pred_1 = predict(model_1, X_1, X_test)
 
-print(classification_report(y_test, y_pred_1))
+# feature_representations_1 = train(model_1, features_1, X_1, X_train, y_train,
+#                                   epochs=5000)
+# y_pred_1 = predict(model_1, X_1, X_test)
+# print(classification_report(y_test, y_pred_1))
 
+
+feature_representations_2 = train(
+    model_2, features_2, X_2, X_train, y_train, epochs=250)
+
+model_2.hybridize()
+print(model_2(X_2))
+digraph = mx.viz.plot_network(model_2)
+digraph.view()
+y_pred_2 = predict(model_2, X_2, X_test)
+print(classification_report(y_test, y_pred_2))

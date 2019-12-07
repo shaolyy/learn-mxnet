@@ -161,7 +161,7 @@ def build_features(A, X):
 
 def build_model(A, X):
     model = HybridSequential()
-    hidden_layer_specs = [(4, 'tanh'), (2, 'tanh')]
+    # hidden_layer_specs = [(4, 'tanh'), (2, 'tanh')]
     in_units = in_units = X.shape[1]
 
     with model.name_scope():
